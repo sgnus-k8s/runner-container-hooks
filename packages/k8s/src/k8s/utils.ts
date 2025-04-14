@@ -1,3 +1,6 @@
+import * as os from 'os'
+import * as semver from 'semver'
+import * as tc from '@actions/tool-cache'
 import * as k8s from '@kubernetes/client-node'
 import * as fs from 'fs'
 import * as yaml from 'js-yaml'
@@ -55,12 +58,44 @@ export function containerVolumes(
     return mounts
   }
 
+  // add externals mount (from tool-cache) if available
+  // requires ghrunner pvc
+  const toolsCacheDir = process.env['AGENT_TOOLSDIRECTORY'] as string
+  const runnerVersions = tc.findAllVersions('runner')
+  const runnerLatestVer = semver.maxSatisfying(runnerVersions, ">=0")
+  const runnerCacheRelPath = path.join('runner', runnerLatestVer, os.arch())
+  const runnerCachePath = path.join(toolsCacheDir, runnerCacheRelPath)
+  const externalsCacheRelPath = path.join(runnerCacheRelPath, 'externals')
+  const externalsCachePath = path.join(toolsCacheDir, externalsCacheRelPath)
+  // assuimg tools-cache dir is a subdir of /ghrunner
+  // externals subpath = tools/runner/<ver>/x64/externals
+  const externalsSubPath = path.join(path.basename(toolsCacheDir), externalsCacheRelPath)
+  core.debug(`checking cache: ${runnerCachePath}`)
+  if ((fs.existsSync(runnerCachePath)) && (fs.existsSync(`${runnerCachePath}.complete`)) && (fs.existsSync(externalsCachePath))) {
+    core.debug(`found runner/externals ${runnerLatestVer} in cache`)
+    mounts.push(
+      {
+        name: 'ghrunner',
+        mountPath: '/ghrunner',
+      },
+      {
+        name: 'ghrunner',
+        mountPath: '/__e',
+        subPath: externalsSubPath
+      }
+    )
+  } else {
+    // no externals cache, mount default
+    mounts.push(
+      {
+        name: POD_VOLUME_NAME,
+        mountPath: '/__e',
+        subPath: 'externals'
+      }
+    )
+  }
+
   mounts.push(
-    {
-      name: POD_VOLUME_NAME,
-      mountPath: '/__e',
-      subPath: 'externals'
-    },
     {
       name: POD_VOLUME_NAME,
       mountPath: '/github/home',

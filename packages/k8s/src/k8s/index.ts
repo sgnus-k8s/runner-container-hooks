@@ -107,6 +107,15 @@ export async function createPod(
     }
   ]
 
+  // add ghrunner pvc
+  appPod.spec.volumes.push(
+    {
+      name: 'ghrunner',
+      persistentVolumeClaim: {claimName: 'ghrunner'}
+    }
+  )
+  core.debug('added ghrunner PVC volume')
+
   if (registry) {
     const secret = await createDockerSecret(registry)
     if (!secret?.metadata?.name) {

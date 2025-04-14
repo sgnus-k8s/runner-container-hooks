@@ -39,7 +39,9 @@ export async function prepareJob(
   await prunePods()
 
   const extension = readExtensionFromFile()
-  await copyExternalsToRoot()
+  // don't copy externals.
+  // assume that externals will be mounted from tool-cache if available
+  //await copyExternalsToRoot()
 
   let container: k8s.V1Container | undefined = undefined
   if (args.container?.image) {
@@ -227,6 +229,36 @@ export function createContainerSpec(
     if (value && key !== 'HOME') {
       podContainer.env.push({ name: key, value: value as string })
     }
+  }
+
+  // add default env vars
+  podContainer.env.push({
+    name: 'JOB_NODE_NAME',
+    valueFrom: { fieldRef: { fieldPath: 'spec.nodeName' } }
+  })
+  podContainer.env.push({
+    name: 'JOB_POD_NAME',
+    valueFrom: { fieldRef: { fieldPath: 'metadata.name' } }
+  })
+  podContainer.env.push({
+    name: 'JOB_POD_NAMESPACE',
+    valueFrom: { fieldRef: { fieldPath: 'metadata.namespace' } }
+  })
+  podContainer.env.push({
+    name: 'JOB_POD_SERVICEACCOUNT',
+    valueFrom: { fieldRef: { fieldPath: 'spec.serviceAccountName' } }
+  })
+  if (process.env['AGENT_TOOLSDIRECTORY'] as string) {
+    podContainer.env.push({
+      name: 'AGENT_TOOLSDIRECTORY',
+      value: process.env['AGENT_TOOLSDIRECTORY']
+    })
+  }
+  if (process.env['GHRUNNER_CACHE'] as string) {
+    podContainer.env.push({
+      name: 'GHRUNNER_CACHE',
+      value: process.env['GHRUNNER_CACHE']
+    })
   }
 
   podContainer.volumeMounts = containerVolumes(

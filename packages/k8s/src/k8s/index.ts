@@ -95,10 +95,12 @@ export async function createPod(
   appPod.spec.containers = containers
   appPod.spec.restartPolicy = 'Never'
 
-  if (!useKubeScheduler()) {
-    appPod.spec.nodeName = await getCurrentNodeName()
+  const nodeName = await getCurrentNodeName()
+  if (useKubeScheduler()) {
+    appPod.spec.affinity = await getPodAffinity(nodeName)
+  } else {
+    appPod.spec.nodeName = nodeName
   }
-
   const claimName = getVolumeClaimName()
   appPod.spec.volumes = [
     {
@@ -164,8 +166,11 @@ export async function createJob(
   job.spec.template.spec.containers = [container]
   job.spec.template.spec.restartPolicy = 'Never'
 
-  if (!useKubeScheduler()) {
-    job.spec.template.spec.nodeName = await getCurrentNodeName()
+  const nodeName = await getCurrentNodeName()
+  if (useKubeScheduler()) {
+    job.spec.template.spec.affinity = await getPodAffinity(nodeName)
+  } else {
+    job.spec.template.spec.nodeName = nodeName
   }
 
   const claimName = getVolumeClaimName()
@@ -461,7 +466,6 @@ export async function getPodLogs(
 
   const r = await log.log(namespace(), podName, containerName, logStream, {
     follow: true,
-    tailLines: 50,
     pretty: false,
     timestamps: false
   })
@@ -547,6 +551,26 @@ async function getCurrentNodeName(): Promise<string> {
     throw new Error('Failed to determine node name')
   }
   return nodeName
+}
+
+async function getPodAffinity(nodeName: string): Promise<k8s.V1Affinity> {
+  const affinity = new k8s.V1Affinity()
+  affinity.nodeAffinity = new k8s.V1NodeAffinity()
+  affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution =
+    new k8s.V1NodeSelector()
+  affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms =
+    [
+      {
+        matchExpressions: [
+          {
+            key: 'kubernetes.io/hostname',
+            operator: 'In',
+            values: [nodeName]
+          }
+        ]
+      }
+    ]
+  return affinity
 }
 
 export function namespace(): string {

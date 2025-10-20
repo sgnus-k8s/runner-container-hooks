@@ -18,6 +18,7 @@ import {
   execPodStep
 } from '../k8s'
 import {
+  containerVolumes,
   CONTAINER_VOLUMES,
   DEFAULT_CONTAINER_ENTRY_POINT,
   DEFAULT_CONTAINER_ENTRY_POINT_ARGS,
@@ -253,6 +254,36 @@ export function createContainerSpec(
       podContainer.env.push({ name: key, value })
     }
   }
+  
+  // add default env vars
+  podContainer.env.push({
+    name: 'JOB_NODE_NAME',
+    valueFrom: { fieldRef: { fieldPath: 'spec.nodeName' } }
+  })
+  podContainer.env.push({
+    name: 'JOB_POD_NAME',
+    valueFrom: { fieldRef: { fieldPath: 'metadata.name' } }
+  })
+  podContainer.env.push({
+    name: 'JOB_POD_NAMESPACE',
+    valueFrom: { fieldRef: { fieldPath: 'metadata.namespace' } }
+  })
+  podContainer.env.push({
+    name: 'JOB_POD_SERVICEACCOUNT',
+    valueFrom: { fieldRef: { fieldPath: 'spec.serviceAccountName' } }
+  })
+  if (process.env['AGENT_TOOLSDIRECTORY'] as string) {
+    podContainer.env.push({
+      name: 'AGENT_TOOLSDIRECTORY',
+      value: process.env['AGENT_TOOLSDIRECTORY']
+    })
+  }
+  if (process.env['GHRUNNER_CACHE'] as string) {
+    podContainer.env.push({
+      name: 'GHRUNNER_CACHE',
+      value: process.env['GHRUNNER_CACHE']
+    })
+  }
 
   podContainer.env.push({
     name: 'GITHUB_ACTIONS',
@@ -266,7 +297,8 @@ export function createContainerSpec(
     })
   }
 
-  podContainer.volumeMounts = CONTAINER_VOLUMES
+  //podContainer.volumeMounts = CONTAINER_VOLUMES
+  podContainer.volumeMounts = containerVolumes()
 
   if (!extension) {
     return podContainer

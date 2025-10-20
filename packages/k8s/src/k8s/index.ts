@@ -110,13 +110,18 @@ export async function createJobPod(
       ]
     }
   ]
+  appPod.spec.initContainers = [] // remove it
 
   appPod.spec.restartPolicy = 'Never'
 
   appPod.spec.volumes = [
+    //{
+    //  name: EXTERNALS_VOLUME_NAME,
+    //  emptyDir: {}
+    //},
     {
-      name: EXTERNALS_VOLUME_NAME,
-      emptyDir: {}
+      name: 'ghrunner',
+      persistentVolumeClaim: {claimName: 'ghrunner'}
     },
     {
       name: GITHUB_VOLUME_NAME,
@@ -196,13 +201,18 @@ export async function createContainerStepPod(
       ]
     }
   ]
+  appPod.spec.initContainers = [] // remove it
 
   appPod.spec.restartPolicy = 'Never'
 
   appPod.spec.volumes = [
+    //{
+    //  name: EXTERNALS_VOLUME_NAME,
+    //  emptyDir: {}
+    //},
     {
-      name: EXTERNALS_VOLUME_NAME,
-      emptyDir: {}
+      name: 'ghrunner',
+      persistentVolumeClaim: {claimName: 'ghrunner'}
     },
     {
       name: GITHUB_VOLUME_NAME,

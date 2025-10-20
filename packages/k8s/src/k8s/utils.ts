@@ -1,3 +1,7 @@
+import * as os from 'os'
+import * as path from 'path'
+import * as semver from 'semver'
+import * as tc from '@actions/tool-cache'
 import * as k8s from '@kubernetes/client-node'
 import * as fs from 'fs'
 import * as yaml from 'js-yaml'
@@ -26,6 +30,45 @@ export const CONTAINER_VOLUMES: k8s.V1VolumeMount[] = [
     mountPath: '/github'
   }
 ]
+
+export function containerVolumes(): k8s.V1VolumeMount[] {
+  const mounts: k8s.V1VolumeMount[] = [
+    {
+      name: GITHUB_VOLUME_NAME,
+      mountPath: '/github'
+    }
+  ]
+
+  // add externals mount (from tool-cache) if available
+  // requires ghrunner pvc
+  const toolsCacheDir = process.env['AGENT_TOOLSDIRECTORY'] as string
+  const runnerVersions = tc.findAllVersions('runner')
+  const runnerLatestVer = semver.maxSatisfying(runnerVersions, ">=0")
+  const runnerCacheRelPath = path.join('runner', runnerLatestVer, os.arch())
+  const runnerCachePath = path.join(toolsCacheDir, runnerCacheRelPath)
+  const externalsCacheRelPath = path.join(runnerCacheRelPath, 'externals')
+  const externalsCachePath = path.join(toolsCacheDir, externalsCacheRelPath)
+  // assuimg tools-cache dir is a subdir of /ghrunner
+  // externals subpath = tools/runner/<ver>/x64/externals
+  const externalsSubPath = path.join(path.basename(toolsCacheDir), externalsCacheRelPath)
+  core.debug(`checking cache: ${runnerCachePath}`)
+  if ((fs.existsSync(runnerCachePath)) && (fs.existsSync(`${runnerCachePath}.complete`)) && (fs.existsSync(externalsCachePath))) {
+    core.debug(`found runner/externals ${runnerLatestVer} in cache`)
+    mounts.push(
+      {
+        name: 'ghrunner',
+        mountPath: '/ghrunner',
+      },
+      {
+        name: 'ghrunner',
+        mountPath: '/__e',
+        subPath: externalsSubPath
+      }
+    )
+  }
+
+  return mounts
+}
 
 export function prepareJobScript(userVolumeMounts: Mount[]): {
   containerPath: string
